@@ -5,7 +5,10 @@ iptables -t mangle -N SSH
 iptables -t mangle -N IOSWL
 
 
-iptables -t nat -I POSTROUTING -p tcp -m multiport --dports 443,80 -m statistic --mode nth --every 2 --packet 1 -j SNAT --to-source 54.36.239.253
+iptables -t nat -F POSTROUTING
+iptables -t nat -I POSTROUTING -p tcp -m multiport --dports 443,80 -m statistic --mode nth --every 2 --packet 0 -j SNAT --to-source 54.36.239.253
+
+iptables -t nat -I POSTROUTING -p tcp -m multiport --sports 443,80 -m statistic --mode nth --every 3 --packet 1 -j SNAT --to-source 54.36.239.254
 
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
