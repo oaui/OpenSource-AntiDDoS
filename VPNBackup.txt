@@ -5,17 +5,14 @@ iptables -t mangle -N SSH
 iptables -t mangle -N IOSWL
 
 
-iptables -t nat -I POSTROUTING -p tcp -m multiport --dports 443,80 -m statistic --mode nth --every 2 --packet 0 -j SNAT --to-source 54.36.239.253
-
-iptables -t nat -I POSTROUTING -p tcp -m multiport --sports 443,80 -m statistic --mode nth --every 3 --packet 1 -j SNAT --to-source 54.36.239.254
-
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
-iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,40 0 0 6,69 17 0 8191,48 0 0 8,53 15 0 64,40 0 0 2,21 0 13 64,48 0 0 9,21 0 11 6,21 0 10 6,40 0 0 6,69 8 0 8191,177 0 0 0,80 0 0 9,21 0 5 0,80 0 0 13,69 0 3 2,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -m comment --comment "Mark IOS before dropping all other unix" -j MARK --set-mark 99
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,40 0 0 6,69 17 0 8191,48 0 0 8,53 15 0 64,40 0 0 2,21 0 13 64,48 0 0 9,21 0 11 6,21 0 10 6,40 0 0 6,69 8 0 8191,177 0 0 0,80 0 0 9,21 0 5 0,80 0 0 13,69 0 3 2,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -m comment --comment "Mark IOS before dropping all other unix" -j MARK --set-mark 5
 iptables -t mangle -A PREROUTING -m mark --mark 5 -j OPENVPN
 iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate ESTABLISHED -j CONNMARK --restore-mark
 iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "19,48 0 0 0,84 0 0 240,21 0 15 64,40 0 0 2,37 0 13 64,53 12 0 512,48 0 0 9,21 0 10 6,40 0 0 6,69 8 0 8191,177 0 0 0,80 0 0 13,69 0 5 8,69 0 4 16,69 3 0 2,72 0 0 14,53 1 0 2048,6 0 0 65535,6 0 0 0" -j MARK --set-mark 6
-iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate ESTABLISHED,RELATED -m connbytes --connbytes 2: --connbytes-mode packets --connbytes-dir original -m mark ! --mark 6 -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "12,48 0 0 0,84 0 0 240,21 0 8 64,48 0 0 9,21 0 6 6,40 0 0 6,69 4 0 8191,177 0 0 0,80 0 0 13,69 0 1 16,6 0 0 65535,6 0 0 0" -j MARK --set-mark 7
+iptables -t mangle -A PREROUTING -p tcp -m mark ! --mark 7 -m conntrack --ctstate ESTABLISHED,RELATED -m connbytes --connbytes 2: --connbytes-mode packets --connbytes-dir original -m mark ! --mark 6 -j DROP
 iptables -t mangle -A PREROUTING -p tcp -j CONNMARK --save-mark
 iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,40 0 0 2,37 0 17 64,40 0 0 6,69 15 0 8191,48 0 0 9,21 0 13 6,21 12 0 132,21 0 11 6,40 0 0 6,69 9 0 8191,177 0 0 0,72 0 0 2,21 0 6 65255,80 0 0 13,69 0 4 16,69 0 3 8,72 0 0 14,53 1 0 8192,6 0 0 65535,6 0 0 0" -m comment --comment "OpenVPN protocol" -j MARK --set-mark 2
 iptables -t mangle -A PREROUTING -p tcp --dport 1194 -m conntrack --ctstate ESTABLISHED,RELATED -m connbytes --connbytes 2:3 --connbytes-dir original --connbytes-mode packets -m mark ! --mark 2 -j DROP
