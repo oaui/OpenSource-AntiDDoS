@@ -1,0 +1,36 @@
+iptables -t mangle -N WINDOWSVALID
+iptables -t mangle -N IOS
+iptables -t mangle -N LINUX
+ipset create ratelimit_set hash:ip
+iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
+iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m tcp -m string --hex-string "|2000|" --algo kmp --from 30 --to 34 -m conntrack ! --ctstatus SEEN_REPLY -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,40 0 0 6,69 17 0 8191,48 0 0 8,53 15 0 64,40 0 0 2,21 0 13 64,48 0 0 9,21 0 11 6,21 0 10 6,40 0 0 6,69 8 0 8191,177 0 0 0,80 0 0 9,21 0 5 0,80 0 0 13,69 0 3 2,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -j MARK --set-mark 2
+iptables -t mangle -A PREROUTING -p tcp -m mark --mark 2 -j IOS
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "13,48 0 0 0,84 0 0 240,21 0 9 64,48 0 0 9,21 0 7 6,40 0 0 6,69 5 0 8191,177 0 0 0,80 0 0 13,69 0 2 2,69 1 0 16,6 0 0 65535,6 0 0 0" -j MARK --set-mark 1
+iptables -t mangle -A PREROUTING -p tcp -m conntrack ! --ctstate NEW -m connbytes --connbytes 2: --connbytes-dir original --connbytes-mode packets -m mark --mark 1 -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "15,48 0 0 0,84 0 0 240,21 0 11 64,48 0 0 9,21 0 9 6,40 0 0 6,69 7 0 8191,177 0 0 0,72 0 0 14,53 4 0 4096,80 0 0 13,69 0 2 16,69 0 1 8,6 0 0 65535,6 0 0 0" -j MARK --set-mark 2
+iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate ESTABLISHED,RELATED -m connbytes --connbytes 2:3 --connbytes-dir original --connbytes-mode packets -m mark ! --mark 2 -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 0 47 64,48 0 0 0,84 0 0 15,21 0 17 5,48 0 0 1,21 0 15 0,40 0 0 2,37 0 13 48,53 12 0 60,40 0 0 6,69 10 0 8191,48 0 0 8,37 0 8 64,48 0 0 9,21 0 6 6,21 0 32 6,40 0 0 6,69 30 0 8191,177 0 0 0,72 0 0 2,21 8 4 22,48 0 0 9,21 0 25 6,40 0 0 6,69 23 0 8191,177 0 0 0,72 0 0 2,21 1 0 2222,21 0 19 25565,80 0 0 10,21 0 17 0,48 0 0 9,21 0 15 6,64 0 0 4,21 13 0 0,80 0 0 9,21 0 11 0,80 0 0 13,69 0 9 2,69 8 0 4,69 7 0 8,69 6 0 32,72 0 0 14,37 0 4 8191,53 3 0 65536,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -m connbytes --connbytes 1:1 --connbytes-dir original --connbytes-mode packets -j MARK --set-mark 3
+iptables -t mangle -A PREROUTING -p tcp -m mark --mark 3 -j WINDOWSVALID
+iptables -t mangle -A PREROUTING -p tcp -m ttl --ttl-lt 64 -j LINUX
+iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+iptables -t mangle -A IOS -p tcp -m connlimit --connlimit-above 3 --connlimit-mask 24 -j DROP
+iptables -t mangle -A IOS -p tcp -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name ioslimit --hashlimit-htable-expire 524288 --hashlimit-srcmask 24 -j DROP
+iptables -t mangle -A IOS -p tcp -m mark --mark 2 -m hashlimit --hashlimit-upto 1/m --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name iosacce --hashlimit-htable-expire 4194304 --hashlimit-srcmask 16 -j ACCEPT
+iptables -t mangle -A IOS -j DROP
+
+iptables -t mangle -A WINDOWSVALID -m length ! --length 52:74 -j DROP
+iptables -t mangle -A WINDOWSVALID -p tcp -m tcpmss ! --mss 1300:1460 -j DROP
+iptables -t mangle -A WINDOWSVALID -p tcp -m tcp ! --tcp-option 3 --tcp-flags SYN SYN -j DROP
+iptables -t mangle -A WINDOWSVALID -p tcp -m tcp ! --tcp-option 1 --tcp-flags SYN SYN -j DROP
+iptables -t mangle -A WINDOWSVALID -p tcp -m connlimit --connlimit-above 2 --connlimit-mask 24 -j DROP
+iptables -t mangle -A WINDOWSVALID -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name windowslimit --hashlimit-htable-gcinterval 1024 --hashlimit-srcmask 24 -j DROP
+iptables -t mangle -A WINDOWSVALID -p tcp --syn -m conntrack --ctstate NEW -m mark --mark 3 -m hashlimit --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name winaccept --hashlimit-htable-expire 4100000 --hashlimit-srcmask 32 -m comment --comment "Drop everything marked above to make sure no bad traffic is being accepted and only accept the windows mark after all" -j ACCEPT
+iptables -t mangle -A WINDOWSVALID -j DROP
+
+iptables -t mangle -A LINUX -m set ! --match-set ratelimit_set src -m hashlimit --hashlimit-mode srcip --hashlimit-name linuxrapelimit --hashlimit-above 1/m --hashlimit-burst 3 -j SET --add-set ratelimit_set src
+iptables -t mangle -A LINUX -p tcp -m connlimit --connlimit-above 1 --connlimit-mask 16 -j DROP
+iptables -t mangle -A LINUX -p tcp -m conntrack --ctstate NEW -m bpf --bytecode "54,48 0 0 0,84 0 0 240,21 50 0 96,48 0 0 0,84 0 0 240,21 0 47 64,48 0 0 9,21 0 45 6,40 0 0 6,69 43 0 8191,177 0 0 0,72 0 0 2,21 2 0 22,21 1 0 2222,21 0 38 25565,48 0 0 9,21 0 36 6,80 0 0 13,69 0 34 2,48 0 0 8,53 32 0 64,40 0 0 2,21 0 30 60,48 0 0 1,21 0 28 0,40 0 0 6,69 26 0 8191,80 0 0 13,69 24 0 32,69 23 0 8,69 22 0 4,69 21 0 16,48 0 0 0,84 0 0 15,37 0 18 4,64 0 0 4,21 16 0 0,64 0 0 5,21 14 0 0,80 0 0 6,37 0 12 64,64 0 0 4,37 0 10 65536,48 0 0 6,84 0 0 32,21 7 0 32,80 0 0 18,21 0 5 0,72 0 0 14,21 3 0 8192,40 0 0 2,53 1 0 1024,6 0 0 65535,6 0 0 0" -m hashlimit --hashlimit-upto 2/m --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name acceptC --hashlimit-htable-gcinterval 8192 --hashlimit-htable-size 512 --hashlimit-htable-max 65536 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A LINUX -j DROP
