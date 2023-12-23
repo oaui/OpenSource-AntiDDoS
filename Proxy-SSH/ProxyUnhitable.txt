@@ -10,9 +10,9 @@ iptables -t mangle -I PREROUTING -s 66.70.138.48 -j ACCEPT
 iptables -t mangle -N LinuxCheck
 iptables -t mangle -N PacketVAL
 iptables -t mangle -N WindowsCHECK
-ipset create ratelimit_set hash:net timeout 32767
+ipset create ratelimit_set hash:ip netmask 24 timeout 32767
 ipset create perm_ban hash:net timeout 0
-ipset create con_exceeded hash:net timeout 2048
+ipset create con_exceeded hash:ip netmask 16 timeout 2048
 iptables -t mangle -A PREROUTING -m set --match-set ratelimit_set src -j DROP
 iptables -t mangle -A PREROUTING -m set --match-set perm_ban src -j DROP
 iptables -t mangle -A PREROUTING -m set --match-set con_exceeded src -j DROP
@@ -39,9 +39,9 @@ iptables -t mangle -A PacketVAL -p tcp -m tcp -m ttl --ttl-lt 64 -j LinuxCheck
 iptables -t mangle -A WindowsCHECK -p tcp -m connlimit --connlimit-above 3 --connlimit-mask 24 -j SET --add-set con_exceeded src --exist
 iptables -t mangle -A WindowsCHECK -p tcp -m hashlimit --hashlimit-above 10/m --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name banBadIPS --hashlimit-htable-max 898192819 --hashlimit-htable-expire 1281996 --hashlimit-srcmask 24 -m comment --comment "There is no reason to ping the server more than 10 times" -j SET --add-set perm_ban src
 iptables -t mangle -A WindowsCHECK -p tcp --syn -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 0 47 64,48 0 0 0,84 0 0 15,21 0 17 5,48 0 0 1,21 0 15 0,40 0 0 2,37 0 13 51,53 12 0 58,40 0 0 6,69 10 0 8191,48 0 0 8,37 0 8 64,48 0 0 9,21 0 6 6,21 0 32 6,40 0 0 6,69 30 0 8191,177 0 0 0,72 0 0 2,21 8 4 22,48 0 0 9,21 0 25 6,40 0 0 6,69 23 0 8191,177 0 0 0,72 0 0 2,21 1 0 2222,21 0 19 25565,80 0 0 10,21 0 17 0,48 0 0 9,21 0 15 6,64 0 0 4,21 13 0 0,80 0 0 9,21 0 11 0,80 0 0 13,69 0 9 2,69 8 0 4,69 7 0 8,69 6 0 32,72 0 0 14,37 0 4 8191,53 3 0 65536,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -m hashlimit --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name winvals --hashlimit-htable-expire 9900000 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A WindowsCHECK -j DROP
 
-
-iptables -t mangle -A LinuxCheck -p tcp -m connlimit --connlimit-above 2 --connlimit-mask 20 -j DROP
+iptables -t mangle -A LinuxCheck -p tcp -m connlimit --connlimit-above 2 --connlimit-mask 20 -j SET --add-set con_exceeded src
 iptables -t mangle -A LinuxCheck -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name linlimi --hashlimit-htable-expire 99999999 --hashlimit-srcmask 32 -j SET --add-set con_exceeded src
 iptables -t mangle -A LinuxCheck -p tcp -m hashlimit --hashlimit-above 3/m --hashlimit-burst 2 --hashlimit-mode srcip,srcport --hashlimit-name banIPS --hashlimit-htable-size 12567142 --hashlimit-htable-gcinterval 2048 --hashlimit-srcmask 24 -j SET --add-set ratelimit_set src
 iptables -t mangle -A LinuxCheck -p tcp -m hashlimit --hashlimit-above 7/m --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name banIPS --hashlimit-htable-max 898192819 --hashlimit-htable-expire 1281996 --hashlimit-srcmask 16 -j SET --add-set perm_ban src
