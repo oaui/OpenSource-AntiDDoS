@@ -2,23 +2,17 @@ sysctl -w net.ipv4.ip_forward=1
 iptables -A FORWARD -i eth0 -j ACCEPT
 iptables -A FORWARD -o eth0 -j ACCEPT
 iptables -I FORWARD -i eth0 -p tcp --dport 25565 -j ACCEPT
-iptables -t nat -A PREROUTING -p tcp --dport 25565 -j DNAT --to-destination 66.70.138.48:9900
+iptables -t nat -A PREROUTING -p tcp --dport 25565 -j DNAT --to-destination 51.38.70.1:60666
 iptables -t nat -A POSTROUTING -j MASQUERADE
 iptables -t mangle -A PREROUTING -p icmp -j DROP
 
-iptables -t mangle -I PREROUTING -s 66.70.138.48 -j ACCEPT
 iptables -t mangle -N LinuxCheck
 iptables -t mangle -N PacketVAL
 iptables -t mangle -N WindowsCHECK
-ipset create ratelimit_set hash:ip netmask 24 timeout 32767
-ipset create perm_ban hash:net timeout 0
-ipset create con_exceeded hash:ip netmask 16 timeout 2048
-iptables -t mangle -A PREROUTING -m set --match-set ratelimit_set src -j DROP
-iptables -t mangle -A PREROUTING -m set --match-set perm_ban src -j DROP
-iptables -t mangle -A PREROUTING -m set --match-set con_exceeded src -j DROP
+
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
-iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m tcp -m string --hex-string "|2000|" --algo kmp --from 30 --to 34 -m conntrack ! --ctstatus SEEN_REPLY -j DROP
+iptables -t raw -I PREROUTING -p tcp ! --tcp-option 8 -m bpf --bytecode "14,48 0 0 0,84 0 0 240,21 0 10 64,48 0 0 9,21 0 8 6,40 0 0 6,69 6 0 8191,177 0 0 0,72 0 0 14,21 0 3 8192,40 0 0 2,53 1 0 54,6 0 0 65535,6 0 0 0" -m comment --comment "should not be deleting that shit anytime soon" -j DROP
 iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "13,48 0 0 0,84 0 0 240,21 0 9 64,48 0 0 9,21 0 7 6,40 0 0 6,69 5 0 8191,177 0 0 0,80 0 0 13,69 0 2 2,69 1 0 16,6 0 0 65535,6 0 0 0" -j MARK --set-mark 1
 iptables -t mangle -A PREROUTING -p tcp -m conntrack ! --ctstate NEW -m connbytes --connbytes 2: --connbytes-dir original --connbytes-mode packets -m mark --mark 1 -j DROP
 iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "15,48 0 0 0,84 0 0 240,21 0 11 64,48 0 0 9,21 0 9 6,40 0 0 6,69 7 0 8191,177 0 0 0,72 0 0 14,53 4 0 4096,80 0 0 13,69 0 2 16,69 0 1 8,6 0 0 65535,6 0 0 0" -j MARK --set-mark 2
@@ -30,24 +24,23 @@ iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate RELATED,ESTABLISH
 
 
 iptables -t mangle -A PacketVAL -m length ! --length 52:74 -j DROP
+iptables -t mangle -A PacketVAL -m bpf --bytecode "15,48 0 0 0,84 0 0 240,21 0 11 64,40 0 0 2,37 8 0 1024,40 0 0 6,69 6 0 8191,48 0 0 6,69 4 0 32,48 0 0 8,37 2 0 235,48 0 0 0,69 1 0 15,6 0 0 65535,6 0 0 0" -j DROP
 iptables -t mangle -A PacketVAL -p tcp -m tcp ! --tcp-option 3 --tcp-flags SYN SYN -j DROP
 iptables -t mangle -A PacketVAL -p tcp -m tcp ! --tcp-option 1 --tcp-flags SYN SYN -j DROP
+iptables -t mangle -A PacketVAL -p all -m conntrack --ctstate NEW -m connlimit --connlimit-above 2 --connlimit-mask 32 -j DROP
 iptables -t mangle -A PacketVAL -p tcp -m tcp -m ttl --ttl-gt 64 -j WindowsCHECK
 iptables -t mangle -A PacketVAL -p tcp -m tcp -m ttl --ttl-lt 64 -j LinuxCheck
 
 
-iptables -t mangle -A WindowsCHECK -p tcp -m connlimit --connlimit-above 3 --connlimit-mask 24 -j SET --add-set con_exceeded src --exist
-iptables -t mangle -A WindowsCHECK -p tcp -m hashlimit --hashlimit-above 10/m --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name banBadIPS --hashlimit-htable-max 898192819 --hashlimit-htable-expire 1281996 --hashlimit-srcmask 24 -m comment --comment "There is no reason to ping the server more than 10 times" -j SET --add-set perm_ban src
-iptables -t mangle -A WindowsCHECK -p tcp --syn -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 0 47 64,48 0 0 0,84 0 0 15,21 0 17 5,48 0 0 1,21 0 15 0,40 0 0 2,37 0 13 51,53 12 0 58,40 0 0 6,69 10 0 8191,48 0 0 8,37 0 8 64,48 0 0 9,21 0 6 6,21 0 32 6,40 0 0 6,69 30 0 8191,177 0 0 0,72 0 0 2,21 8 4 22,48 0 0 9,21 0 25 6,40 0 0 6,69 23 0 8191,177 0 0 0,72 0 0 2,21 1 0 2222,21 0 19 25565,80 0 0 10,21 0 17 0,48 0 0 9,21 0 15 6,64 0 0 4,21 13 0 0,80 0 0 9,21 0 11 0,80 0 0 13,69 0 9 2,69 8 0 4,69 7 0 8,69 6 0 32,72 0 0 14,37 0 4 8191,53 3 0 65536,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -m hashlimit --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name winvals --hashlimit-htable-expire 9900000 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A WindowsCHECK -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name winconlimi --hashlimit-htable-size 86761534 --hashlimit-htable-gcinterval 8192 --hashlimit-srcmask 24 -j DROP
+iptables -t mangle -A WindowsCHECK -p tcp -m connlimit --connlimit-above 3 --connlimit-mask 24 -j DROP
+iptables -t mangle -A WindowsCHECK -p tcp -m hashlimit --hashlimit-above 5/m --hashlimit-burst 3 --hashlimit-mode srcip,srcport --hashlimit-name banBadIPS --hashlimit-htable-max 898192819 --hashlimit-htable-expire 1281996 --hashlimit-srcmask 24 -m comment --comment "There is no reason to ping the server more than 10 times" -j DROP
+iptables -t mangle -A WindowsCHECK -p tcp --syn -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 0 47 64,48 0 0 0,84 0 0 15,21 0 17 5,48 0 0 1,21 15 0 0,40 0 0 2,37 0 13 51,53 12 0 58,40 0 0 6,69 10 0 8191,48 0 0 8,37 0 8 64,48 0 0 9,21 0 6 6,21 0 32 6,40 0 0 6,69 30 0 8191,177 0 0 0,72 0 0 2,21 8 4 22,48 0 0 9,21 0 25 6,40 0 0 6,69 23 0 8191,177 0 0 0,72 0 0 2,21 1 0 2222,21 0 19 25565,80 0 0 10,21 0 17 0,48 0 0 9,21 0 15 6,64 0 0 4,21 13 0 0,80 0 0 9,21 0 11 0,80 0 0 13,69 0 9 2,69 8 0 4,69 7 0 8,69 6 0 32,72 0 0 14,37 0 4 8191,53 3 0 65536,80 0 0 18,21 0 1 0,6 0 0 65535,6 0 0 0" -m hashlimit --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name winvals --hashlimit-htable-expire 9900000 --hashlimit-srcmask 32 -j ACCEPT
 iptables -t mangle -A WindowsCHECK -j DROP
 
-iptables -t mangle -A LinuxCheck -p tcp -m connlimit --connlimit-above 2 --connlimit-mask 20 -j SET --add-set con_exceeded src
-iptables -t mangle -A LinuxCheck -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name linlimi --hashlimit-htable-expire 99999999 --hashlimit-srcmask 32 -j SET --add-set con_exceeded src
-iptables -t mangle -A LinuxCheck -p tcp -m hashlimit --hashlimit-above 3/m --hashlimit-burst 2 --hashlimit-mode srcip,srcport --hashlimit-name banIPS --hashlimit-htable-size 12567142 --hashlimit-htable-gcinterval 2048 --hashlimit-srcmask 24 -j SET --add-set ratelimit_set src
-iptables -t mangle -A LinuxCheck -p tcp -m hashlimit --hashlimit-above 7/m --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name banIPS --hashlimit-htable-max 898192819 --hashlimit-htable-expire 1281996 --hashlimit-srcmask 16 -j SET --add-set perm_ban src
-iptables -t mangle -A LinuxCheck -m set --match-set ratelimit_set src -j DROP
-iptables -t mangle -A LinuxCheck -m set --match-set perm_ban src -j DROP
-iptables -t mangle -A LinuxCheck -m set --match-set con_exceeded src -j DROP
-iptables -t mangle -A LinuxCheck -p tcp --syn -m mark --mark 3 -m hashlimit --hashlimit-upto 1/s --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name linaccep --hashlimit-htable-expire 9900000 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A LinuxCheck -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name linlimi --hashlimit-htable-size 86761534 --hashlimit-htable-gcinterval 512 --hashlimit-srcmask 32 -j DROP
+iptables -t mangle -A LinuxCheck -p all -m connlimit --connlimit-above 1 --connlimit-mask 24 -j DROP
+iptables -t mangle -A LinuxCheck -p tcp -m hashlimit --hashlimit-above 2/m --hashlimit-burst 2 --hashlimit-mode srcip,srcport --hashlimit-name banIPS --hashlimit-htable-max 898192819 --hashlimit-htable-expire 1281996 --hashlimit-srcmask 16 -j DROP
+iptables -t mangle -A LinuxCheck -p tcp --syn -m mark --mark 3 -m hashlimit --hashlimit-upto 1/m --hashlimit-burst 1 --hashlimit-mode srcip --hashlimit-name linaccep --hashlimit-htable-expire 9900000 --hashlimit-srcmask 32 -j ACCEPT
 iptables -t mangle -A LinuxCheck -j DROP
 iptables -t mangle -P PREROUTING DROP
