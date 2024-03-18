@@ -1,6 +1,5 @@
 
 iptables -t mangle -I PREROUTING -s 51.38.70.1 -j ACCEPT
-iptables -t mangle -I PREROUTING -s 95.91.250.12 -j ACCEPT
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
 
@@ -13,8 +12,8 @@ iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate ESTABLISHED -j CO
 
 iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 1:1 --connbytes-mode packets --connbytes-dir original -m mark ! --mark 0 -j DROP
 iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 2:2 --connbytes-mode packets --connbytes-dir original -m mark ! --mark 1 -j DROP
-iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m mark ! --mark 2 -j CONNMARK --set-mark 99
-iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 4: --connbytes-mode packets --connbytes-dir original -m connmark --mark 99 -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m mark ! --mark 2 -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 4: --connbytes-mode packets --connbytes-dir original -m mark ! --mark 3 -j DROP
 
 iptables -t mangle -A PREROUTING -p tcp -m mark --mark 2 -j CONNMARK --save-mark
 
