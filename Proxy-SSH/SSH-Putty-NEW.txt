@@ -16,9 +16,8 @@ iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 4: --connbytes-
 iptables -t mangle -A PREROUTING -p tcp -m mark --mark 99 -j CONNMARK --save-mark
 
 
-
+iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-mode srcip,srcport --hashlimit-name globalCon --hashlimit-htable-size 86761534 --hashlimit-htable-gcinterval 2048 --hashlimit-srcmask 24 -j DROP
 iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m connlimit --connlimit-above 2 --connlimit-mask 24 -j DROP
-
 iptables -t mangle -A PREROUTING -p tcp --syn -m hashlimit --hashlimit-mode srcip --hashlimit-above 4/min --hashlimit-burst 2 --hashlimit-htable-max 8129119 --hashlimit-name general-syn-limit --hashlimit-htable-size 1000000000 --hashlimit-htable-expire 120000 --hashlimit-srcmask 24 --hashlimit-htable-gcinterval 4096 -j DROP
 
 iptables -t mangle -A PREROUTING -p tcp --syn -m conntrack --ctstate NEW -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 0 47 64,48 0 0 0,84 0 0 15,21 0 16 5,40 0 0 2,37 0 14 51,53 13 0 58,40 0 0 6,69 11 0 8191,48 0 0 8,37 0 9 64,53 8 0 255,48 0 0 9,21 0 6 6,21 0 33 6,40 0 0 6,69 31 0 8191,177 0 0 0,72 0 0 2,21 8 4 22,48 0 0 9,21 0 26 6,40 0 0 6,69 24 0 8191,177 0 0 0,72 0 0 2,21 1 0 2222,21 0 20 25565,64 0 0 4,21 18 0 0,48 0 0 9,21 0 16 6,80 0 0 13,69 0 14 2,69 13 0 4,69 12 0 8,69 11 0 32,69 10 0 16,72 0 0 14,37 0 8 8191,53 7 0 65536,80 0 0 18,21 0 5 0,64 0 0 8,21 0 3 0,80 0 0 12,21 0 1 128,6 0 0 65535,6 0 0 0" -m hashlimit --hashlimit-mode srcip --hashlimit-upto 5/m --hashlimit-burst 2 --hashlimit-htable-max 999999 --hashlimit-name WindowsHash --hashlimit-htable-size 817281921 --hashlimit-htable-expire 8192 --hashlimit-srcmask 32 -m comment --comment "Whitelist windows using bpf, to slow down mcstorm, change 5 to lower number" -j ACCEPT
