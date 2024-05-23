@@ -55,41 +55,29 @@ sysctl -p
 
 /*Paste the rules and WHITELIST the backends you would like to proxy*/
 iptables -t mangle -A PREROUTING -p icmp -j DROP
-iptables -t mangle -I PREROUTING -s 51.38.70.1 -j ACCEPT
-iptables -t mangle -A OUTPUT -s 51.38.70.1 -j ACCEPT
-iptables -t nat -A POSTROUTING -s 51.38.70.1 -j ACCEPT
+iptables -t mangle -I PREROUTING -s BACKEND -j ACCEPT
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
 
 iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 47 0 96,48 0 0 0,84 0 0 240,21 0 44 64,48 0 0 9,21 0 42 6,40 0 0 6,69 40 0 8191,177 0 0 0,72 0 0 2,21 2 0 22,21 1 0 2222,21 0 35 25565,48 0 0 9,21 0 33 6,80 0 0 13,69 0 31 2,48 0 0 8,37 0 29 32,53 28 0 255,40 0 0 2,37 0 26 50,53 25 0 68,40 0 0 6,69 23 0 8191,80 0 0 13,69 21 0 32,69 20 0 8,69 19 0 4,69 18 0 16,48 0 0 0,84 0 0 15,37 0 15 4,64 0 0 4,21 13 0 0,64 0 0 5,21 11 0 0,80 0 0 6,21 9 0 0,48 0 0 6,84 0 0 32,21 6 0 32,80 0 0 18,21 0 4 0,72 0 0 14,37 0 2 8191,53 1 0 65536,6 0 0 65535,6 0 0 0" -j MARK --set-mark 0
-iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "14,48 0 0 0,84 0 0 240,21 0 10 64,48 0 0 9,21 0 8 6,40 0 0 6,69 6 0 8191,177 0 0 0,80 0 0 13,69 0 3 16,40 0 0 2,21 0 1 40,6 0 0 65535,6 0 0 0" -j MARK --set-mark 1
-iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "18,48 0 0 0,84 0 0 240,21 0 14 64,48 0 0 9,21 0 12 6,40 0 0 6,69 10 0 8191,177 0 0 0,80 0 0 13,69 0 2 16,64 0 0 20,21 4 0 1397966893,80 0 0 13,69 0 3 8,64 0 0 20,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -m comment --comment "SSH Validation" -j MARK --set-mark 2
-
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -m comment --comment "SSH Validation" -j CONNMARK --set-mark 1
 
 iptables -t mangle -A PREROUTING -p tcp -m string --hex-string "OpenSSH" --algo bm -j DROP
 iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate ESTABLISHED -j CONNMARK --restore-mark
 
-iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 1:1 --connbytes-mode packets --connbytes-dir original -m mark ! --mark 0 -j DROP
-iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m mark ! --mark 2 -j MARK --set-mark 4
-iptables -t mangle -A PREROUTING -p tcp -m mark --mark 4 -j DROP
+iptables -t mangle -A PREROUTING -p tcp -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m connmark ! --mark 1 -j CONNMARK --set-mark 99
+iptables -t mangle -A PREROUTING -p tcp -m connmark --mark 99 -j DROP
 
-iptables -t mangle -A PREROUTING -p tcp -m mark --mark 2 -j CONNMARK --save-mark
-
-
-iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-mode srcip,srcport --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-htable-max 9999999 --hashlimit-name secHashlim --hashlimit-htable-size 817212823 --hashlimit-htable-expire 512000 --hashlimit-srcmask 16 --hashlimit-htable-gcinterval 2048 -j DROP
 
 iptables -t mangle -A PREROUTING -p tcp -m connlimit --connlimit-above 2 --connlimit-mask 24 -j DROP
 
-iptables -t mangle -A PREROUTING -p tcp --syn -m hashlimit --hashlimit-mode srcip --hashlimit-above 4/min --hashlimit-burst 2 --hashlimit-htable-max 8129119 --hashlimit-name general-syn-limit --hashlimit-htable-size 1000000000 --hashlimit-htable-expire 120000 --hashlimit-srcmask 24 --hashlimit-htable-gcinterval 4096 -j DROP
-
-
-iptables -t mangle -A PREROUTING -p tcp --syn -m conntrack --ctstate NEW -m mark --mark 0 -m hashlimit --hashlimit-mode srcip --hashlimit-upto 5/m --hashlimit-burst 2 --hashlimit-htable-max 999999 --hashlimit-name WindowsHash --hashlimit-htable-size 817281921 --hashlimit-htable-expire 8192 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A PREROUTING -p tcp --syn -m hashlimit --hashlimit-mode srcip --hashlimit-above 4/min --hashlimit-burst 2 --hashlimit-htable-max 8129119 --hashlimit-name general-syn-limit --hashlimit-htable-size 1000000000 --hashlimit-htable-expire 256000 --hashlimit-srcmask 24 --hashlimit-htable-gcinterval 4096 -j DROP
 
 
 iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -t mangle -A PREROUTING -p tcp --syn -m conntrack --ctstate NEW -m mark --mark 0 -m hashlimit --hashlimit-mode srcip --hashlimit-upto 5/m --hashlimit-burst 5 --hashlimit-htable-max 999999 --hashlimit-name AcceptHash --hashlimit-htable-size 817281921 --hashlimit-htable-expire 128000 --hashlimit-srcmask 32 -j ACCEPT
+
 iptables -t mangle -P PREROUTING DROP
-
-
 
 
 /*Start listening*/
