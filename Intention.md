@@ -1,1 +1,1 @@
-<p>Researching using BPF and the images in the imgs folder.</p>
+<p>Creating ufw / iptables rules for everyone free to use under the MIT license, to serve the idea which protects a VPS from DDoS attacks and bad traffic, laying under the MIT license.</p>
