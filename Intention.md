@@ -1,1 +1,2 @@
 <p>Creating ufw / iptables rules for everyone free to use under the MIT license, to serve the idea which protects a VPS from DDoS attacks and bad traffic, laying under the MIT license.</p>
+<p>The images attached to this show a 12$ OVH KVM Canada server filtering a 1.5tbs attack within seconds and recovering fully of a port saturation. This should be enough to proof that the set works just fine against any kind of attack, even if its not spoofed but real-like requests.</p>
