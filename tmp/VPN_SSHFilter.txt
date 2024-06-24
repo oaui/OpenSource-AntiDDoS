@@ -1,0 +1,46 @@
+
+iptables -t mangle -N SSH_FILTER
+iptables -t mangle -N OpenVPN
+
+##Drop invalid and stuff
+iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
+iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
+iptables -t mangle -I PREROUTING -f -j DROP
+
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 47 0 96,48 0 0 0,84 0 0 240,21 0 44 64,48 0 0 9,21 0 42 6,40 0 0 6,69 40 0 8191,177 0 0 0,72 0 0 2,21 2 0 22,21 1 0 2222,21 0 35 25565,48 0 0 9,21 0 33 6,80 0 0 13,69 0 31 2,48 0 0 8,37 0 29 32,53 28 0 255,40 0 0 2,37 0 26 50,53 25 0 128,40 0 0 6,69 23 0 8191,80 0 0 13,69 21 0 32,69 20 0 8,69 19 0 4,69 18 0 16,48 0 0 0,84 0 0 15,37 0 15 4,64 0 0 4,21 13 0 0,64 0 0 5,21 11 0 0,80 0 0 6,21 9 0 0,48 0 0 6,84 0 0 32,21 6 0 32,80 0 0 18,21 0 4 0,72 0 0 14,37 0 2 8191,53 1 0 65536,6 0 0 65535,6 0 0 0" -m comment --comment "Validate Syn packet" -j MARK --set-mark 0
+iptables -t mangle -A PREROUTING -p tcp -m bpf --bytecode "21,48 0 0 0,84 0 0 240,21 0 17 64,48 0 0 9,21 0 15 6,40 0 0 6,69 13 0 8191,177 0 0 0,80 0 0 13,69 0 10 8,69 0 9 16,80 0 0 22,21 6 0 80,21 5 0 56,21 4 0 72,21 3 0 40,80 0 0 34,21 1 0 56,21 0 1 80,6 0 0 65535,6 0 0 0" -m comment --comment "OVPN Hard reset" -j CONNMARK --set-mark 1
+iptables -t mangle -A PREROUTING -p tcp -m comment --comment "SSH Validation" -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 2
+
+
+iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 22 -j SSH_FILTER
+iptables -t mangle -A PREROUTING -p tcp -m multiport --dports 1194 -j OpenVPN
+
+iptables -t mangle -A SSH_FILTER -p tcp -m comment --comment "OpenSSH has more issues than good things in our case" -m string --hex-string "OpenSSH" --algo bm -j DROP
+iptables -t mangle -A SSH_FILTER -p tcp -m comment --comment "Restore the SSH Mark" -m conntrack --ctstate ESTABLISHED -j CONNMARK --restore-mark
+
+iptables -t mangle -A SSH_FILTER -p tcp -m comment --comment "Mark everything which is not the SSH packet" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m connmark ! --mark 2 -j CONNMARK --set-mark 99
+iptables -t mangle -A SSH_FILTER -p tcp -m comment --comment "Drop the bad traffic" -m connmark --mark 99 -j DROP
+iptables -t mangle -A SSH_FILTER -p tcp -m comment --comment "Apply connlimit and further ratelimit below" -m connlimit --connlimit-above 2 --connlimit-mask 24 -j DROP
+
+
+iptables -t mangle -A SSH_FILTER -p tcp -m conntrack --ctstate NEW -m recent --mask 255.255.0.0 --update --seconds 5 --hitcount 1 --name ratelimList -j DROP
+iptables -t mangle -A SSH_FILTER -p tcp -m conntrack --ctstate NEW -m recent --mask 255.255.255.0 --update --seconds 30 --hitcount 5 --name ratelimList -j DROP
+iptables -t mangle -A SSH_FILTER -p tcp -m conntrack --ctstate NEW -m recent --mask 255.255.255.0 --name ratelimList --set
+
+iptables -t mangle -A SSH_FILTER -p tcp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -t mangle -A SSH_FILTER -p tcp --syn -m conntrack --ctstate NEW -m mark --mark 0 -m hashlimit --hashlimit-mode srcip --hashlimit-upto 5/m --hashlimit-burst 5 --hashlimit-htable-max 9999999 --hashlimit-name AcceptHash --hashlimit-htable-size 817281921 --hashlimit-htable-expire 128000 --hashlimit-srcmask 32 -j ACCEPT
+iptables -t mangle -A SSH_FILTER -j DROP
+
+
+iptables -t mangle -A OpenVPN -i lo -j ACCEPT
+iptables -t mangle -A OpenVPN -i tun+ -j ACCEPT
+iptables -t mangle -A OpenVPN -p tcp -m comment --comment "Restore the Openvpn Mark" -m conntrack --ctstate ESTABLISHED -j CONNMARK --restore-mark
+iptables -t mangle -A OpenVPN -p tcp -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m connmark ! --mark 1 -j CONNMARK --set-mark 99
+iptables -t mangle -A OpenVPN -p tcp -m comment --comment "Drop the bad traffic" -m connmark --mark 99 -j DROP
+iptables -t mangle -A OpenVPN -p tcp -m comment --comment "Apply connlimit and further ratelimit below" -m connlimit --connlimit-above 2 --connlimit-mask 24 -j DROP
+iptables -t mangle -A OpenVPN -p tcp -m conntrack --ctstate NEW -m hashlimit --hashlimit-name dropStuff --hashlimit-mode srcip --hashlimit-srcmask 24 --hashlimit-above 1/s --hashlimit-burst 1 --hashlimit-htable-gcinterval 2048 --hashlimit-htable-size 9999999 --hashlimit-htable-max 9999999 -j DROP
+iptables -t mangle -A OpenVPN -p tcp -m conntrack --ctstate ESTABLISHED -m connbytes --connbytes 2:2 --connbytes-dir original --connbytes-mode packets -m bpf --bytecode "14,48 0 0 0,84 0 0 240,21 0 10 64,40 0 0 2,21 0 8 40,48 0 0 9,21 0 6 6,40 0 0 6,69 4 0 8191,177 0 0 0,80 0 0 13,69 0 1 16,6 0 0 65535,6 0 0 0" -j ACCEPT
+iptables -t mangle -A OpenVPN -p tcp -m conntrack --ctstate ESTABLISHED -m connmark --mark 1 -j ACCEPT
+iptables -t mangle -A OpenVPN -p tcp -m conntrack --ctstate RELATED -j ACCEPT
+iptables -t mangle -A OpenVPN -p tcp --syn -m conntrack --ctstate NEW -m mark --mark 0 -m hashlimit --hashlimit-name portlimit --hashlimit-mode srcip --hashlimit-srcmask 32 --hashlimit-upto 5/m --hashlimit-burst 2 --hashlimit-htable-expire 256000 --hashlimit-htable-size 817281921 --hashlimit-htable-max 9999999 -j ACCEPT
+iptables -t mangle -A OpenVPN -j DROP

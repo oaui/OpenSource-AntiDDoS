@@ -1,23 +1,19 @@
 
 iptables -t mangle -A PREROUTING -p icmp -j DROP
 iptables -t mangle -I PREROUTING -s 51.38.70.1 -j ACCEPT
-iptables -t mangle -I PREROUTING -s 193.111.250.25 -j ACCEPT
 iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
 iptables -t mangle -A PREROUTING -m conntrack --ctstate INVALID -j DROP
 
 
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Mark the first Syn Packet" -m bpf --bytecode "51,48 0 0 0,84 0 0 240,21 47 0 96,48 0 0 0,84 0 0 240,21 0 44 64,48 0 0 9,21 0 42 6,40 0 0 6,69 40 0 8191,177 0 0 0,72 0 0 2,21 2 0 22,21 1 0 2222,21 0 35 25565,48 0 0 9,21 0 33 6,80 0 0 13,69 0 31 2,48 0 0 8,37 0 29 32,53 28 0 255,40 0 0 2,37 0 26 50,53 25 0 68,40 0 0 6,69 23 0 8191,80 0 0 13,69 21 0 32,69 20 0 8,69 19 0 4,69 18 0 16,48 0 0 0,84 0 0 15,37 0 15 4,64 0 0 4,21 13 0 0,64 0 0 5,21 11 0 0,80 0 0 6,21 9 0 0,48 0 0 6,84 0 0 32,21 6 0 32,80 0 0 18,21 0 4 0,72 0 0 14,37 0 2 8191,53 1 0 65536,6 0 0 65535,6 0 0 0" -j MARK --set-mark 0
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "SSH Validation" -m bpf --bytecode "23,48 0 0 0,84 0 0 240,21 0 19 64,48 0 0 9,21 0 17 6,40 0 0 6,69 15 0 8191,177 0 0 0,80 0 0 13,69 0 12 8,69 0 11 16,64 0 0 20,21 8 0 1397966893,80 0 0 20,21 0 7 1,80 0 0 21,21 0 5 1,80 0 0 22,21 0 3 8,64 0 0 32,21 0 1 1397966893,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 1
-iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Exchange init" -m bpf --bytecode "18,48 0 0 0,84 0 0 240,21 0 14 64,48 0 0 9,21 0 12 6,40 0 0 6,69 10 0 8191,177 0 0 0,80 0 0 37,21 2 0 20,80 0 0 25,21 0 5 20,64 0 0 361,21 2 0 123,64 0 0 557,21 0 1 123,6 0 0 65535,6 0 0 0" -j CONNMARK --set-mark 2
 
 
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "OpenSSH has more issues than good things in our case" -m string --hex-string "OpenSSH" --algo bm -j DROP
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Restore the SSH Mark" -m conntrack --ctstate ESTABLISHED -j CONNMARK --restore-mark
 
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Mark everything which is not the SSH packet" -m connbytes --connbytes 3:3 --connbytes-mode packets --connbytes-dir original -m connmark ! --mark 1 -j CONNMARK --set-mark 99
-iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Mark everything which is not the Exchange init signature" -m connbytes --connbytes 5:5 --connbytes-mode packets --connbytes-dir original -m connmark ! --mark 2 -j CONNMARK --set-mark 98
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Drop the bad traffic" -m connmark --mark 99 -j DROP
-iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Drop the bad traffic" -m connmark --mark 98 -j DROP
 
 iptables -t mangle -A PREROUTING -p tcp -m comment --comment "Apply connlimit and further ratelimit below" -m connlimit --connlimit-above 2 --connlimit-mask 24 -j DROP
 
