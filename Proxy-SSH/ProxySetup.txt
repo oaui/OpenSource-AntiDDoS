@@ -7,10 +7,7 @@ apt update
 apt upgrade -y
 
 /*Install everything needed*/
-apt-get install build-essential net-tools wireshark tuna tshark tcpdump gcc dstat htop nload ipset libcurl4-openssl-dev conntrack libssl-dev zlib1g-dev libpcap-dev -y
-
-/*Install simpleproxy*/
-apt install simpleproxy -y
+apt-get install build-essential net-tools wireshark tuna tshark tcpdump gcc dstat htop nload ipset libcurl4-openssl-dev conntrack simpleproxy libssl-dev zlib1g-dev libpcap-dev -y
 
 /*Grant permission*/
 chmod 777 *
@@ -21,12 +18,6 @@ modprobe ip_conntrack
 
 /*Simpleproxy command*/
 simpleproxy -d -L PROXYPORT -R BackendIp:BackendPort >> Save into proxy.sh or whatever
-
-/*IMPORTANT!!!*/
-sudo reboot
-
-/*Hacker thing*/
-echo 100000000 > /sys/module/nf_conntrack/parameters/hashsize
 
 /*Kernel*/
 nano /etc/sysctl.conf
@@ -56,6 +47,9 @@ net.netfilter.nf_conntrack_tcp_timeout_syn_recv = 30
 /*Save kernel*/
 iptables-save
 sysctl -p
+
+/*IMPORTANT!!!*/
+sudo reboot
 
 /*Whitelist yourself to port 22*/
 
